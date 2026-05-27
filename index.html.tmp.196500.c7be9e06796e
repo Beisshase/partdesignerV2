@@ -240,6 +240,9 @@
             </p>
             <p>This project is based on the open source work of <a href="https://marian42.de/" target="_blank">marian42</a>, available on <a href="https://github.com/marian42/partdesigner" target="_blank">Github</a>.</p>
             <p>The <em>Save Part</em> and <em>Load Part</em> features were added by <a href="https://kynso.de" target="_blank">Kynso GmbH</a>.</p>
+            <p class="fineprint">
+                <a href="https://marian42.de/" target="_blank">marian42.de</a>
+            </p>
         </details>
     </div>
     <div class="canvas-container">

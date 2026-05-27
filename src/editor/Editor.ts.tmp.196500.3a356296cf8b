@@ -128,7 +128,7 @@ class Editor {
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement('a');
 		a.href = url;
-		a.download = this.getName() + '_v' + this.getRevision() + '.partds';
+		a.download = this.getName() + '_v' + this.getRevision() + '.pdp';
 		a.click();
 		URL.revokeObjectURL(url);
 	}
@@ -172,9 +172,6 @@ class Editor {
 
 	private clear() {
 		this.part.blocks.clear();
-		this.getNameTextbox().value = '';
-		(document.getElementById('partRevision') as HTMLInputElement).value = '';
-		this.onPartNameChange(null);
 		this.updateMesh();
 	}
 

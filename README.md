@@ -4,7 +4,15 @@
 
 This is a free online CAD tool to create custom LEGO® Technic compatible construction parts for 3D printing.
 
-Features
+Erweiterter Fork des [Part Designer](https://github.com/marian42/partdesigner) von Marian Kleineberg (MIT-lizenziert).
+
+## Version 2
+
+New version of the Part Designer with the following new features:
+- Save Part: Save your part design to a local file
+- Load Part: Load a previously saved part design from a local file
+
+## Features
 - Assemble a custom part from basic blocks: Pin Hole, Axle Hole, Pin, Axle, Solid
 - Save your model as an STL file
 - Catalog of existing LEGO® parts
