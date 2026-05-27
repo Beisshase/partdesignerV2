@@ -4,6 +4,9 @@
         "outFile": "app.js",
         "sourceMap": true,
         "target": "esnext",
+        "strict": false,
+        "noImplicitAny": false,
+        "strictNullChecks": false
     },
 	"compileOnSave": true,
     "include": [

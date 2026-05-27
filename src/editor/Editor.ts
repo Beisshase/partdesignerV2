@@ -174,7 +174,7 @@ class Editor {
 		this.part.blocks.clear();
 		this.getNameTextbox().value = '';
 		(document.getElementById('partRevision') as HTMLInputElement).value = '';
-		this.onPartNameChange(null);
+		document.title = 'Part Designer';
 		this.updateMesh();
 	}
 
