@@ -1,5 +1,6 @@
 {
     "compilerOptions": {
+        "ignoreDeprecations": "6.0",
         "outFile": "app.js",
         "sourceMap": true,
         "target": "esnext",
