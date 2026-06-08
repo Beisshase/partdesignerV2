@@ -110,11 +110,11 @@ class Editor {
 	}
 
 	private saveSTL() {
-		STLExporter.saveSTLFile(this.part, this.measurements, this.getName());
+		STLExporter.saveSTLFile(this.part, this.measurements, this.getName(), this.getRevision());
 	}
 
 	private saveStudioPart() {
-		StudioPartExporter.savePartFile(this.part, this.measurements, this.getName());
+		StudioPartExporter.savePartFile(this.part, this.measurements, this.getName(), this.getRevision());
 	}
 
 	private getRevision(): string {

@@ -1361,10 +1361,10 @@ class Editor {
         this.camera.render();
     }
     saveSTL() {
-        STLExporter.saveSTLFile(this.part, this.measurements, this.getName());
+        STLExporter.saveSTLFile(this.part, this.measurements, this.getName(), this.getRevision());
     }
     saveStudioPart() {
-        StudioPartExporter.savePartFile(this.part, this.measurements, this.getName());
+        StudioPartExporter.savePartFile(this.part, this.measurements, this.getName(), this.getRevision());
     }
     getRevision() {
         const rev = document.getElementById('partRevision').value.trim();
@@ -2062,8 +2062,8 @@ class STLExporter {
         }
         return exporter.buffer;
     }
-    static saveSTLFile(part, measurements, name = "part") {
-        let filename = name.toLowerCase().replaceAll(" ", "_") + ".stl";
+    static saveSTLFile(part, measurements, name = "part", revision = "1.0") {
+        let filename = name.toLowerCase().replaceAll(" ", "_") + "_v" + revision + ".stl";
         let blob = new Blob([STLExporter.createBuffer(part, measurements)], { type: "application/octet-stream" });
         let link = document.createElement('a');
         link.href = window.URL.createObjectURL(blob);
@@ -2192,8 +2192,8 @@ class StudioPartExporter {
         result += "0 NOFILE\n";
         return result;
     }
-    static savePartFile(part, measurements, name = "part") {
-        let filename = name.toLowerCase().replaceAll(" ", "_") + ".part";
+    static savePartFile(part, measurements, name = "part", revision = "1.0") {
+        let filename = name.toLowerCase().replaceAll(" ", "_") + "_v" + revision + ".part";
         let content = StudioPartExporter.createFileContent(part, measurements, name, filename);
         let link = document.createElement('a');
         link.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(content);
