@@ -57,6 +57,7 @@ const NAMED_MEASUREMENTS : NamedMeasurement[] = [
 	new NamedMeasurement("edgeMargin", true, false),
 	new NamedMeasurement("interiorRadius", true, true),
 	new NamedMeasurement("pinHoleRadius", true, true),
+	new NamedMeasurement("holeRadius", true, true),
 	new NamedMeasurement("pinHoleOffset", true, false),
 	new NamedMeasurement("axleHoleSize", true, true),
 	new NamedMeasurement("pinRadius", true, true),

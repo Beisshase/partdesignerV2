@@ -24,6 +24,10 @@ class Editor {
 	mouseMode = MouseMode.None;
 	lastMousePosition: [number, number];
 
+	sidebarResizing = false;
+	sidebarMinWidth = 280;
+	sidebarMaxWidth = 800;
+
 	handles: Handles;
 
 	editorState: EditorState;
@@ -94,6 +98,7 @@ class Editor {
 		document.getElementById("resetmeasurements").addEventListener("click", (event: MouseEvent) => this.resetMeasurements());
 
 		this.initializeEditor("type", (typeName: string) => this.setType(typeName));
+		this.initializeEditor("type2", (typeName: string) => this.setType(typeName));
 		this.initializeEditor("orientation", (orientationName: string) => this.setOrientation(orientationName));
 		this.initializeEditor("size", (sizeName: string) => this.setSize(sizeName));
 		this.initializeEditor("rounded", (roundedName: string) => this.setRounded(roundedName));
@@ -102,6 +107,37 @@ class Editor {
 
 		this.getNameTextbox().addEventListener("change", (event: Event) => this.onPartNameChange(event));
 		this.getNameTextbox().addEventListener("keyup", (event: Event) => this.onPartNameChange(event));
+
+		var sidebarResizer = document.getElementById("sidebar-resizer");
+		sidebarResizer.addEventListener("mousedown", (event: MouseEvent) => this.onSidebarResizeStart(event));
+		window.addEventListener("mousemove", (event: MouseEvent) => this.onSidebarResizeMove(event));
+		window.addEventListener("mouseup", (event: MouseEvent) => this.onSidebarResizeEnd(event));
+	}
+
+	private onSidebarResizeStart(event: MouseEvent) {
+		this.sidebarResizing = true;
+		document.getElementById("sidebar-resizer").classList.add("resizing");
+		event.preventDefault();
+	}
+
+	private onSidebarResizeMove(event: MouseEvent) {
+		if (!this.sidebarResizing) {
+			return;
+		}
+		var width = clamp(this.sidebarMinWidth, this.sidebarMaxWidth, event.clientX);
+		document.getElementById("sidebar").style.width = width + "px";
+		document.getElementById("sidebar-resizer").style.left = width + "px";
+		(document.querySelector(".canvas-container") as HTMLElement).style.paddingLeft = width + "px";
+		this.camera.onResize();
+		this.camera.render();
+	}
+
+	private onSidebarResizeEnd(event: MouseEvent) {
+		if (!this.sidebarResizing) {
+			return;
+		}
+		this.sidebarResizing = false;
+		document.getElementById("sidebar-resizer").classList.remove("resizing");
 	}
 
 	private onNodeEditorClick(event: MouseEvent) {
@@ -328,6 +364,7 @@ class Editor {
 			'4': () => this.setType('axle'),
 			'5': () => this.setType('solid'),
 			'6': () => this.setType('balljoint'),
+			'7': () => this.setType('hole'),
 			'y': () => this.setOrientation('y'),
 			'z': () => this.setOrientation('z'),
 			'x': () => this.setOrientation('x'),

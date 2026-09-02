@@ -10,7 +10,7 @@
     <link rel="icon" href="favicon.png" type="image/png" sizes="16x16"/>
 </head>
 <body>
-    <div class="sidebar">
+    <div class="sidebar" id="sidebar">
         <details open>
             <summary>Part</summary>
             <div class="group">
@@ -61,6 +61,11 @@
 
                 <input type="radio" id="balljoint" name="type" value="balljoint">
                 <label class="radiolabel" for="balljoint">Ball Joint</label>
+            </div>
+            <div class="group" id="type2">
+                <span class="editorhint"></span>
+                <input type="radio" id="hole" name="type" value="hole">
+                <label class="radiolabel" for="hole">Schmelzloch</label>
             </div>
             <div class="group" id="orientation">
                 <span class="editorhint">Orientation</span>
@@ -132,6 +137,12 @@
                 <span class="measurementhint">Pin Hole Offset</span>
                 <a href="#" class="reset">Reset</a>
                 <input class="measurement" type="text" id="pinHoleOffset">
+                <span class="unit">mm</span>
+            </div>
+            <div class="group">
+                <span class="measurementhint">Schmelzloch Diameter</span>
+                <a href="#" class="reset">Reset</a>
+                <input class="measurement" type="text" id="holeRadius">
                 <span class="unit">mm</span>
             </div>
             <div class="group">
@@ -212,7 +223,7 @@
             <table>
                 <tr>
                     <td><span class="key">1</span> <span class="key">2</span> <span class="key">3</span>
-                        <span class="key">4</span> <span class="key">5</span> <span class="key">6</span>
+                        <span class="key">4</span> <span class="key">5</span> <span class="key">6</span> <span class="key">7</span>
                     </td>
                     <td>set type</td>
                 </tr>
@@ -240,8 +251,10 @@
             </p>
             <p>This project is based on the open source work of <a href="https://marian42.de/" target="_blank">marian42</a>, available on <a href="https://github.com/marian42/partdesigner" target="_blank">Github</a>.</p>
             <p>The <em>Save Part</em> and <em>Load Part</em> features were added by <a href="https://kynso.de" target="_blank">Kynso GmbH</a>.</p>
+            <p class="version">Version v2.01.00</p>
         </details>
     </div>
+    <div class="sidebar-resizer" id="sidebar-resizer"></div>
     <div class="canvas-container">
         <canvas id="canvas"></canvas>
     </div>

@@ -532,6 +532,8 @@ class PartMeshGenerator extends MeshGenerator {
 				this.renderPinHoleInterior(block);
 			} else if (block.type == BlockType.AxleHole) {
 				this.renderAxleHoleInterior(block);
+			} else if (block.type == BlockType.Hole) {
+				this.renderHoleInterior(block);
 			}
         }
 	}
@@ -915,6 +917,38 @@ class PartMeshGenerator extends MeshGenerator {
         if (hasOpenEnd || showInteriorEndCap) {
             this.createCylinder(block, distance - offset - endMargin, interiorRadius, offset, true);
             this.createCircleWithHole(block, this.measurements.pinHoleRadius, interiorRadius, distance - offset - endMargin, false);
+        }
+
+        if (showInteriorEndCap) {
+            this.createCircle(block, interiorRadius, distance - endMargin, false);
+        }
+        if (showInteriorStartCap) {
+            this.createCircle(block, interiorRadius, startMargin, true);
+        }
+    }
+
+    private renderHoleInterior(block: TinyBlock) {
+		var nextBlock = this.getNextBlock(block, true);
+        var previousBlock = this.getPreviousBlock(block);
+        var distance = block.getInteriorDepth(this);
+
+        var hasOpenEnd = this.hasOpenEnd(block, true);
+        var hasOpenStart = this.hasOpenStart(block);
+        var showInteriorEndCap = this.showInteriorCap(block, nextBlock) || (nextBlock == null && !hasOpenEnd);
+		var showInteriorStartCap = this.showInteriorCap(block, previousBlock) || (previousBlock == null && !hasOpenStart);
+
+		var endMargin = showInteriorEndCap ? this.measurements.interiorEndMargin : 0;
+		var startMargin = showInteriorStartCap ? this.measurements.interiorEndMargin : 0;
+		var interiorRadius = this.measurements.interiorRadius;
+
+		this.createCylinder(block, startMargin, this.measurements.holeRadius, distance - startMargin - endMargin, true);
+
+        if (hasOpenStart || showInteriorStartCap) {
+            this.createCircleWithHole(block, this.measurements.holeRadius, interiorRadius, startMargin, true);
+        }
+
+        if (hasOpenEnd || showInteriorEndCap) {
+            this.createCircleWithHole(block, this.measurements.holeRadius, interiorRadius, distance - endMargin, false);
         }
 
         if (showInteriorEndCap) {

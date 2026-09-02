@@ -577,6 +577,9 @@ class PartMeshGenerator extends MeshGenerator {
             else if (block.type == BlockType.AxleHole) {
                 this.renderAxleHoleInterior(block);
             }
+            else if (block.type == BlockType.Hole) {
+                this.renderHoleInterior(block);
+            }
         }
     }
     renderAttachments() {
@@ -827,6 +830,31 @@ class PartMeshGenerator extends MeshGenerator {
         if (hasOpenEnd || showInteriorEndCap) {
             this.createCylinder(block, distance - offset - endMargin, interiorRadius, offset, true);
             this.createCircleWithHole(block, this.measurements.pinHoleRadius, interiorRadius, distance - offset - endMargin, false);
+        }
+        if (showInteriorEndCap) {
+            this.createCircle(block, interiorRadius, distance - endMargin, false);
+        }
+        if (showInteriorStartCap) {
+            this.createCircle(block, interiorRadius, startMargin, true);
+        }
+    }
+    renderHoleInterior(block) {
+        var nextBlock = this.getNextBlock(block, true);
+        var previousBlock = this.getPreviousBlock(block);
+        var distance = block.getInteriorDepth(this);
+        var hasOpenEnd = this.hasOpenEnd(block, true);
+        var hasOpenStart = this.hasOpenStart(block);
+        var showInteriorEndCap = this.showInteriorCap(block, nextBlock) || (nextBlock == null && !hasOpenEnd);
+        var showInteriorStartCap = this.showInteriorCap(block, previousBlock) || (previousBlock == null && !hasOpenStart);
+        var endMargin = showInteriorEndCap ? this.measurements.interiorEndMargin : 0;
+        var startMargin = showInteriorStartCap ? this.measurements.interiorEndMargin : 0;
+        var interiorRadius = this.measurements.interiorRadius;
+        this.createCylinder(block, startMargin, this.measurements.holeRadius, distance - startMargin - endMargin, true);
+        if (hasOpenStart || showInteriorStartCap) {
+            this.createCircleWithHole(block, this.measurements.holeRadius, interiorRadius, startMargin, true);
+        }
+        if (hasOpenEnd || showInteriorEndCap) {
+            this.createCircleWithHole(block, this.measurements.holeRadius, interiorRadius, distance - endMargin, false);
         }
         if (showInteriorEndCap) {
             this.createCircle(block, interiorRadius, distance - endMargin, false);
@@ -1099,6 +1127,7 @@ class Measurements {
     interiorRadius = 3.2 / this.technicUnit;
     pinHoleRadius = 2.475 / this.technicUnit;
     pinHoleOffset = 0.89 / this.technicUnit;
+    holeRadius = 1.75 / this.technicUnit;
     axleHoleSize = 1.01 / this.technicUnit;
     pinRadius = 2.315 / this.technicUnit;
     ballBaseRadius = 1.6 / this.technicUnit;
@@ -1118,6 +1147,7 @@ class Measurements {
         this.interiorRadius = Math.min(0.5 - this.edgeMargin, this.interiorRadius);
         this.interiorEndMargin = Math.min(0.49, this.interiorEndMargin);
         this.pinHoleRadius = Math.min(this.interiorRadius, this.pinHoleRadius);
+        this.holeRadius = Math.min(this.interiorRadius, this.holeRadius);
         this.pinHoleOffset = Math.min(0.5 - this.edgeMargin, this.pinHoleOffset);
         this.axleHoleSize = Math.min(this.interiorRadius / 2, this.axleHoleSize);
         this.pinRadius = Math.min(0.5 - this.edgeMargin, this.pinRadius);
@@ -1293,6 +1323,9 @@ class Editor {
     zoomStep = 0.9;
     mouseMode = MouseMode.None;
     lastMousePosition;
+    sidebarResizing = false;
+    sidebarMinWidth = 280;
+    sidebarMaxWidth = 800;
     handles;
     editorState;
     style = RenderStyle.Contour;
@@ -1349,12 +1382,40 @@ class Editor {
         document.getElementById("applymeasurements").addEventListener("click", (event) => this.applyMeasurements());
         document.getElementById("resetmeasurements").addEventListener("click", (event) => this.resetMeasurements());
         this.initializeEditor("type", (typeName) => this.setType(typeName));
+        this.initializeEditor("type2", (typeName) => this.setType(typeName));
         this.initializeEditor("orientation", (orientationName) => this.setOrientation(orientationName));
         this.initializeEditor("size", (sizeName) => this.setSize(sizeName));
         this.initializeEditor("rounded", (roundedName) => this.setRounded(roundedName));
         document.getElementById("blockeditor").addEventListener("toggle", (event) => this.onNodeEditorClick(event));
         this.getNameTextbox().addEventListener("change", (event) => this.onPartNameChange(event));
         this.getNameTextbox().addEventListener("keyup", (event) => this.onPartNameChange(event));
+        var sidebarResizer = document.getElementById("sidebar-resizer");
+        sidebarResizer.addEventListener("mousedown", (event) => this.onSidebarResizeStart(event));
+        window.addEventListener("mousemove", (event) => this.onSidebarResizeMove(event));
+        window.addEventListener("mouseup", (event) => this.onSidebarResizeEnd(event));
+    }
+    onSidebarResizeStart(event) {
+        this.sidebarResizing = true;
+        document.getElementById("sidebar-resizer").classList.add("resizing");
+        event.preventDefault();
+    }
+    onSidebarResizeMove(event) {
+        if (!this.sidebarResizing) {
+            return;
+        }
+        var width = clamp(this.sidebarMinWidth, this.sidebarMaxWidth, event.clientX);
+        document.getElementById("sidebar").style.width = width + "px";
+        document.getElementById("sidebar-resizer").style.left = width + "px";
+        document.querySelector(".canvas-container").style.paddingLeft = width + "px";
+        this.camera.onResize();
+        this.camera.render();
+    }
+    onSidebarResizeEnd(event) {
+        if (!this.sidebarResizing) {
+            return;
+        }
+        this.sidebarResizing = false;
+        document.getElementById("sidebar-resizer").classList.remove("resizing");
     }
     onNodeEditorClick(event) {
         this.handles.visible = event.srcElement.open;
@@ -1558,6 +1619,7 @@ class Editor {
             '4': () => this.setType('axle'),
             '5': () => this.setType('solid'),
             '6': () => this.setType('balljoint'),
+            '7': () => this.setType('hole'),
             'y': () => this.setOrientation('y'),
             'z': () => this.setOrientation('z'),
             'x': () => this.setOrientation('x'),
@@ -1925,6 +1987,7 @@ const NAMED_MEASUREMENTS = [
     new NamedMeasurement("edgeMargin", true, false),
     new NamedMeasurement("interiorRadius", true, true),
     new NamedMeasurement("pinHoleRadius", true, true),
+    new NamedMeasurement("holeRadius", true, true),
     new NamedMeasurement("pinHoleOffset", true, false),
     new NamedMeasurement("axleHoleSize", true, true),
     new NamedMeasurement("pinRadius", true, true),
@@ -3012,6 +3075,7 @@ var BlockType;
     BlockType[BlockType["Axle"] = 4] = "Axle";
     BlockType[BlockType["BallJoint"] = 5] = "BallJoint";
     BlockType[BlockType["BallSocket"] = 6] = "BallSocket";
+    BlockType[BlockType["Hole"] = 7] = "Hole";
 })(BlockType || (BlockType = {}));
 const BLOCK_TYPE = {
     "solid": BlockType.Solid,
@@ -3020,7 +3084,8 @@ const BLOCK_TYPE = {
     "pin": BlockType.Pin,
     "axle": BlockType.Axle,
     "balljoint": BlockType.BallJoint,
-    "ballsocket": BlockType.BallSocket
+    "ballsocket": BlockType.BallSocket,
+    "hole": BlockType.Hole
 };
 var Orientation;
 (function (Orientation) {

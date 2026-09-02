@@ -30,6 +30,32 @@ html, body {
     overflow: auto;
 }
 
+.sidebar-resizer {
+    position: fixed;
+    top: 0;
+    left: 420px;
+    width: 10px;
+    height: 100%;
+    cursor: ew-resize;
+    z-index: 30;
+    background-color: transparent;
+}
+
+.sidebar-resizer::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 3px;
+    height: 100%;
+    background-color: rgb(167, 167, 167);
+    transition: background-color 0.15s;
+}
+
+.sidebar-resizer:hover::before, .sidebar-resizer.resizing::before {
+    background-color: rgb(21, 98, 212);
+}
+
 details {
     padding: 10px;
     overflow: hidden;

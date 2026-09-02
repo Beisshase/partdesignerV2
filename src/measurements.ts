@@ -5,6 +5,7 @@ class Measurements {
 	interiorRadius = 3.2 / this.technicUnit;
 	pinHoleRadius = 2.475 / this.technicUnit;
 	pinHoleOffset = 0.89 / this.technicUnit;
+	holeRadius = 1.75 / this.technicUnit;
 	axleHoleSize = 1.01 / this.technicUnit;
 	pinRadius = 2.315 / this.technicUnit;
 	ballBaseRadius = 1.6 / this.technicUnit;
@@ -27,6 +28,7 @@ class Measurements {
 		this.interiorRadius = Math.min(0.5 - this.edgeMargin, this.interiorRadius);
 		this.interiorEndMargin = Math.min(0.49, this.interiorEndMargin);
 		this.pinHoleRadius = Math.min(this.interiorRadius, this.pinHoleRadius);
+		this.holeRadius = Math.min(this.interiorRadius, this.holeRadius);
 		this.pinHoleOffset = Math.min(0.5 - this.edgeMargin, this.pinHoleOffset);
 		this.axleHoleSize = Math.min(this.interiorRadius / 2, this.axleHoleSize);
 		this.pinRadius = Math.min(0.5 - this.edgeMargin, this.pinRadius);

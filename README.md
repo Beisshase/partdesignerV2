@@ -6,20 +6,24 @@ This is a free online CAD tool to create custom LEGO® Technic compatible constr
 
 Erweiterter Fork des [Part Designer](https://github.com/marian42/partdesigner) von Marian Kleineberg (MIT-lizenziert).
 
-## Version 2
+## Version 2 (v2.01.00)
 
 New version of the Part Designer with the following new features:
 - Save Part: Save your part design to a local file
 - Load Part: Load a previously saved part design from a local file
+- Schmelzloch: A simple cylindrical hole block, positioned like a Pin Hole, with an adjustable diameter (default 3.5mm)
+- Resizable sidebar: Drag the handle at the sidebar's edge to adjust its width
 
 ## Features
-- Assemble a custom part from basic blocks: Pin Hole, Axle Hole, Pin, Axle, Solid
+- Assemble a custom part from basic blocks: Pin Hole, Axle Hole, Pin, Axle, Solid, Ball Joint, Schmelzloch
 - Save your model as an STL file
 - Catalog of existing LEGO® parts
 - Customize measurements to get a perfect fit
 - Create a sharable link of your part
 
 # Local setup and development
+
+Der Code liegt lokal unter `E:\Data\Dropbox\WRO_Dev\partdesignerV2\partdesignerV2`.
 
 You need to have [TypeScript](https://www.typescriptlang.org/) installed.
 In the project root, run `tsc`.

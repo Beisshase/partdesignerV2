@@ -5,7 +5,8 @@
 	Pin,
 	Axle,
 	BallJoint,
-	BallSocket
+	BallSocket,
+	Hole
 }
 
 const BLOCK_TYPE = {
@@ -15,5 +16,6 @@ const BLOCK_TYPE = {
 	"pin": BlockType.Pin,
 	"axle": BlockType.Axle,
 	"balljoint": BlockType.BallJoint,
-	"ballsocket": BlockType.BallSocket
+	"ballsocket": BlockType.BallSocket,
+	"hole": BlockType.Hole
 }
