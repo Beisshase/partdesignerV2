@@ -7,6 +7,7 @@ enum MouseMode {
 
 class Editor {
 	camera: Camera;
+	gridRenderer: GridRenderer;
 	partRenderer: MeshRenderer;
 	partNormalDepthRenderer: NormalDepthRenderer;
 	contourEffect: ContourPostEffect;
@@ -27,6 +28,8 @@ class Editor {
 	sidebarResizing = false;
 	sidebarMinWidth = 280;
 	sidebarMaxWidth = 800;
+
+	cursorScreenRelative = true;
 
 	handles: Handles;
 
@@ -55,7 +58,10 @@ class Editor {
 		this.canvas = document.getElementById('canvas') as HTMLCanvasElement;
 		this.canvas.tabIndex = 0;
 		this.camera = new Camera(this.canvas);
-		
+
+		this.gridRenderer = new GridRenderer();
+		this.camera.renderers.push(this.gridRenderer);
+
 		this.partRenderer = new MeshRenderer();
 		this.partRenderer.color = new Vector3(0.67, 0.7, 0.71);
 		this.camera.renderers.push(this.partRenderer);
@@ -99,11 +105,12 @@ class Editor {
 
 		this.initializeEditor("type", (typeName: string) => this.setType(typeName));
 		this.initializeEditor("type2", (typeName: string) => this.setType(typeName));
-		this.initializeEditor("type3", (typeName: string) => this.setType(typeName));
 		this.initializeEditor("orientation", (orientationName: string) => this.setOrientation(orientationName));
 		this.initializeEditor("size", (sizeName: string) => this.setSize(sizeName));
 		this.initializeEditor("rounded", (roundedName: string) => this.setRounded(roundedName));
 		this.initializeEditor("wedgedirection", (quadrantName: string) => this.setWedgeQuadrant(quadrantName));
+		this.initializeEditor("gridplane", (orientationName: string) => this.setGridPlane(orientationName));
+		this.initializeEditor("cursormode", (modeName: string) => this.setCursorMode(modeName));
 
 		document.getElementById("blockeditor").addEventListener("toggle", (event: MouseEvent) => this.onNodeEditorClick(event));
 
@@ -260,6 +267,15 @@ class Editor {
 		this.updateBlock();
 	}
 
+	private setGridPlane(orientationName: string) {
+		this.gridRenderer.setPlane(ORIENTATION[orientationName]);
+		this.camera.render();
+	}
+
+	private setCursorMode(modeName: string) {
+		this.cursorScreenRelative = modeName == "screen";
+	}
+
 	private setRenderStyle(style: RenderStyle) {
 		this.style = style;
 		this.partNormalDepthRenderer.enabled = style == RenderStyle.Contour;
@@ -304,6 +320,39 @@ class Editor {
 
 	private getRotation(): Matrix4 {
 		return Matrix4.getRotation(new Vector3(0, this.rotationX, this.rotationY));
+	}
+
+	/* In screen-relative mode, resolves the given screen-space direction to whichever
+	world grid axis currently points closest to it, so cursor movement always follows
+	what the user sees regardless of how the view has been rotated. In fixed-axis mode,
+	just uses the given world direction unchanged (the original, pre-toggle behavior). */
+	private getCursorMoveDirection(screenDirection: Vector3, fixedDirection: Vector3): Vector3 {
+		if (!this.cursorScreenRelative) {
+			return fixedDirection;
+		}
+		return this.getScreenAxisInWorld(screenDirection);
+	}
+
+	/* Maps a screen-space direction (e.g. (1,0,0) for "right on screen") to whichever
+	world grid axis currently points closest to it, so cursor movement always follows
+	what the user sees, regardless of how the view has been rotated. */
+	private getScreenAxisInWorld(screenDirection: Vector3): Vector3 {
+		var worldDirection = this.getRotation().invert().transformDirection(screenDirection).normalized();
+		var axes = [
+			new Vector3(1, 0, 0), new Vector3(-1, 0, 0),
+			new Vector3(0, 1, 0), new Vector3(0, -1, 0),
+			new Vector3(0, 0, 1), new Vector3(0, 0, -1)
+		];
+		var best = axes[0];
+		var bestDot = -Infinity;
+		for (var axis of axes) {
+			var dot = worldDirection.dot(axis);
+			if (dot > bestDot) {
+				bestDot = dot;
+				best = axis;
+			}
+		}
+		return best;
 	}
 
 	private updateTransform() {
@@ -376,19 +425,29 @@ class Editor {
 			'y': () => this.setOrientation('y'),
 			'z': () => this.setOrientation('z'),
 			'x': () => this.setOrientation('x'),
-			'PageUp': () => this.handles.move(new Vector3(0, 1, 0)),
-			'PageDown': () => this.handles.move(new Vector3(0, -1, 0)),
-			'ArrowLeft': () => this.handles.move(new Vector3(0, 0, 1)),
-			'ArrowRight': () => this.handles.move(new Vector3(0, 0, -1)),
-			'ArrowUp': () => this.handles.move(new Vector3(-1, 0, 0)),
-			'ArrowDown': () => this.handles.move(new Vector3(1, 0, 0)),
+			'PageUp': () => this.handles.move(this.getCursorMoveDirection(new Vector3(0, 0, -1), new Vector3(0, 1, 0))),
+			'PageDown': () => this.handles.move(this.getCursorMoveDirection(new Vector3(0, 0, 1), new Vector3(0, -1, 0))),
+			'ArrowLeft': () => this.handles.move(this.getCursorMoveDirection(new Vector3(-1, 0, 0), new Vector3(0, 0, 1))),
+			'ArrowRight': () => this.handles.move(this.getCursorMoveDirection(new Vector3(1, 0, 0), new Vector3(0, 0, -1))),
+			'ArrowUp': () => this.handles.move(this.getCursorMoveDirection(new Vector3(0, 1, 0), new Vector3(-1, 0, 0))),
+			'ArrowDown': () => this.handles.move(this.getCursorMoveDirection(new Vector3(0, -1, 0), new Vector3(1, 0, 0))),
 			'Backspace': () => this.remove(),
 			'Delete': () => this.remove(),
 		};
 
-		if (event.key in keyActions && document.activeElement == this.canvas) {
+		if (event.key in keyActions && !this.isTextInputFocused()) {
 			keyActions[event.key]();
+			event.preventDefault();
 		}
+	}
+
+	private isTextInputFocused(): boolean {
+		var element = document.activeElement;
+		if (element == null) {
+			return false;
+		}
+		var tagName = element.tagName.toLowerCase();
+		return tagName == "textarea" || (tagName == "input" && (element as HTMLInputElement).type == "text");
 	}
 	private displayMeasurements() {
 		for (var namedMeasurement of NAMED_MEASUREMENTS) {

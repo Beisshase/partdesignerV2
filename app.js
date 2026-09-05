@@ -1485,6 +1485,7 @@ var MouseMode;
 })(MouseMode || (MouseMode = {}));
 class Editor {
     camera;
+    gridRenderer;
     partRenderer;
     partNormalDepthRenderer;
     contourEffect;
@@ -1502,6 +1503,7 @@ class Editor {
     sidebarResizing = false;
     sidebarMinWidth = 280;
     sidebarMaxWidth = 800;
+    cursorScreenRelative = true;
     handles;
     editorState;
     style = RenderStyle.Contour;
@@ -1523,6 +1525,8 @@ class Editor {
         this.canvas = document.getElementById('canvas');
         this.canvas.tabIndex = 0;
         this.camera = new Camera(this.canvas);
+        this.gridRenderer = new GridRenderer();
+        this.camera.renderers.push(this.gridRenderer);
         this.partRenderer = new MeshRenderer();
         this.partRenderer.color = new Vector3(0.67, 0.7, 0.71);
         this.camera.renderers.push(this.partRenderer);
@@ -1559,11 +1563,12 @@ class Editor {
         document.getElementById("resetmeasurements").addEventListener("click", (event) => this.resetMeasurements());
         this.initializeEditor("type", (typeName) => this.setType(typeName));
         this.initializeEditor("type2", (typeName) => this.setType(typeName));
-        this.initializeEditor("type3", (typeName) => this.setType(typeName));
         this.initializeEditor("orientation", (orientationName) => this.setOrientation(orientationName));
         this.initializeEditor("size", (sizeName) => this.setSize(sizeName));
         this.initializeEditor("rounded", (roundedName) => this.setRounded(roundedName));
         this.initializeEditor("wedgedirection", (quadrantName) => this.setWedgeQuadrant(quadrantName));
+        this.initializeEditor("gridplane", (orientationName) => this.setGridPlane(orientationName));
+        this.initializeEditor("cursormode", (modeName) => this.setCursorMode(modeName));
         document.getElementById("blockeditor").addEventListener("toggle", (event) => this.onNodeEditorClick(event));
         this.getNameTextbox().addEventListener("change", (event) => this.onPartNameChange(event));
         this.getNameTextbox().addEventListener("keyup", (event) => this.onPartNameChange(event));
@@ -1699,6 +1704,13 @@ class Editor {
         this.editorState.wedgeQuadrant = QUADRANT_NAME[quadrantName];
         this.updateBlock();
     }
+    setGridPlane(orientationName) {
+        this.gridRenderer.setPlane(ORIENTATION[orientationName]);
+        this.camera.render();
+    }
+    setCursorMode(modeName) {
+        this.cursorScreenRelative = modeName == "screen";
+    }
     setRenderStyle(style) {
         this.style = style;
         this.partNormalDepthRenderer.enabled = style == RenderStyle.Contour;
@@ -1739,6 +1751,37 @@ class Editor {
     }
     getRotation() {
         return Matrix4.getRotation(new Vector3(0, this.rotationX, this.rotationY));
+    }
+    /* In screen-relative mode, resolves the given screen-space direction to whichever
+    world grid axis currently points closest to it, so cursor movement always follows
+    what the user sees regardless of how the view has been rotated. In fixed-axis mode,
+    just uses the given world direction unchanged (the original, pre-toggle behavior). */
+    getCursorMoveDirection(screenDirection, fixedDirection) {
+        if (!this.cursorScreenRelative) {
+            return fixedDirection;
+        }
+        return this.getScreenAxisInWorld(screenDirection);
+    }
+    /* Maps a screen-space direction (e.g. (1,0,0) for "right on screen") to whichever
+    world grid axis currently points closest to it, so cursor movement always follows
+    what the user sees, regardless of how the view has been rotated. */
+    getScreenAxisInWorld(screenDirection) {
+        var worldDirection = this.getRotation().invert().transformDirection(screenDirection).normalized();
+        var axes = [
+            new Vector3(1, 0, 0), new Vector3(-1, 0, 0),
+            new Vector3(0, 1, 0), new Vector3(0, -1, 0),
+            new Vector3(0, 0, 1), new Vector3(0, 0, -1)
+        ];
+        var best = axes[0];
+        var bestDot = -Infinity;
+        for (var axis of axes) {
+            var dot = worldDirection.dot(axis);
+            if (dot > bestDot) {
+                bestDot = dot;
+                best = axis;
+            }
+        }
+        return best;
     }
     updateTransform() {
         this.camera.transform =
@@ -1806,18 +1849,27 @@ class Editor {
             'y': () => this.setOrientation('y'),
             'z': () => this.setOrientation('z'),
             'x': () => this.setOrientation('x'),
-            'PageUp': () => this.handles.move(new Vector3(0, 1, 0)),
-            'PageDown': () => this.handles.move(new Vector3(0, -1, 0)),
-            'ArrowLeft': () => this.handles.move(new Vector3(0, 0, 1)),
-            'ArrowRight': () => this.handles.move(new Vector3(0, 0, -1)),
-            'ArrowUp': () => this.handles.move(new Vector3(-1, 0, 0)),
-            'ArrowDown': () => this.handles.move(new Vector3(1, 0, 0)),
+            'PageUp': () => this.handles.move(this.getCursorMoveDirection(new Vector3(0, 0, -1), new Vector3(0, 1, 0))),
+            'PageDown': () => this.handles.move(this.getCursorMoveDirection(new Vector3(0, 0, 1), new Vector3(0, -1, 0))),
+            'ArrowLeft': () => this.handles.move(this.getCursorMoveDirection(new Vector3(-1, 0, 0), new Vector3(0, 0, 1))),
+            'ArrowRight': () => this.handles.move(this.getCursorMoveDirection(new Vector3(1, 0, 0), new Vector3(0, 0, -1))),
+            'ArrowUp': () => this.handles.move(this.getCursorMoveDirection(new Vector3(0, 1, 0), new Vector3(-1, 0, 0))),
+            'ArrowDown': () => this.handles.move(this.getCursorMoveDirection(new Vector3(0, -1, 0), new Vector3(1, 0, 0))),
             'Backspace': () => this.remove(),
             'Delete': () => this.remove(),
         };
-        if (event.key in keyActions && document.activeElement == this.canvas) {
+        if (event.key in keyActions && !this.isTextInputFocused()) {
             keyActions[event.key]();
+            event.preventDefault();
         }
+    }
+    isTextInputFocused() {
+        var element = document.activeElement;
+        if (element == null) {
+            return false;
+        }
+        var tagName = element.tagName.toLowerCase();
+        return tagName == "textarea" || (tagName == "input" && element.type == "text");
     }
     displayMeasurements() {
         for (var namedMeasurement of NAMED_MEASUREMENTS) {
@@ -3464,6 +3516,76 @@ class ContourPostEffect {
         gl.drawArrays(gl.TRIANGLES, 0, 6);
         gl.depthFunc(gl.LEQUAL);
         gl.depthMask(true);
+    }
+}
+class GridRenderer {
+    shader;
+    positions;
+    lineCount;
+    extent;
+    spacing;
+    transform = Matrix4.getIdentity();
+    enabled = true;
+    color = new Vector3(0.6, 0.6, 0.6);
+    alpha = 0.35;
+    constructor(extent = 20, spacing = 1) {
+        this.extent = extent;
+        this.spacing = spacing;
+        this.shader = new Shader(SIMPLE_VERTEX_SHADER, COLOR_FRAGMENT_SHADER);
+        this.shader.setAttribute("vertexPosition");
+        this.shader.setUniform("projectionMatrix");
+        this.shader.setUniform("modelViewMatrix");
+        this.shader.setUniform("color");
+        this.shader.setUniform("scale");
+        this.positions = gl.createBuffer();
+        this.setPlane(Orientation.Y);
+    }
+    /* The grid lies in the plane perpendicular to the given orientation axis - e.g.
+    Orientation.Y draws the grid across the X/Z plane. */
+    setPlane(orientation) {
+        var axis1, axis2;
+        switch (orientation) {
+            case Orientation.X:
+                axis1 = new Vector3(0, 1, 0);
+                axis2 = new Vector3(0, 0, 1);
+                break;
+            case Orientation.Y:
+                axis1 = new Vector3(1, 0, 0);
+                axis2 = new Vector3(0, 0, 1);
+                break;
+            case Orientation.Z:
+                axis1 = new Vector3(1, 0, 0);
+                axis2 = new Vector3(0, 1, 0);
+                break;
+        }
+        var lines = [];
+        var steps = Math.round(this.extent / this.spacing);
+        for (var i = -steps; i <= steps; i++) {
+            var p = i * this.spacing;
+            var a = axis1.times(-this.extent).plus(axis2.times(p));
+            var b = axis1.times(this.extent).plus(axis2.times(p));
+            lines.push(a.x, a.y, a.z, b.x, b.y, b.z);
+            var c = axis1.times(p).plus(axis2.times(-this.extent));
+            var d = axis1.times(p).plus(axis2.times(this.extent));
+            lines.push(c.x, c.y, c.z, d.x, d.y, d.z);
+        }
+        this.lineCount = lines.length / 3;
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.positions);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(lines), gl.STATIC_DRAW);
+    }
+    render(camera) {
+        if (!this.enabled) {
+            return;
+        }
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.positions);
+        gl.vertexAttribPointer(this.shader.attributes["vertexPosition"], 3, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(this.shader.attributes["vertexPosition"]);
+        gl.useProgram(this.shader.program);
+        gl.uniformMatrix4fv(this.shader.attributes["projectionMatrix"], false, camera.getProjectionMatrix().elements);
+        gl.uniformMatrix4fv(this.shader.attributes["modelViewMatrix"], false, this.transform.times(camera.transform).elements);
+        gl.uniform3f(this.shader.attributes["scale"], 1, 1, 1);
+        gl.uniform4f(this.shader.attributes["color"], this.color.x, this.color.y, this.color.z, this.alpha);
+        gl.drawArrays(gl.LINES, 0, this.lineCount);
     }
 }
 class MeshRenderer {

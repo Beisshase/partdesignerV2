@@ -12,11 +12,14 @@ New version of the Part Designer with the following new features:
 - Save Part: Save your part design to a local file
 - Load Part: Load a previously saved part design from a local file
 - Schmelzloch: A simple cylindrical hole block, positioned like a Pin Hole, with an adjustable diameter (default 2.9mm)
-- Keil (Wedge): A block whose own volume is cut diagonally by a plane, with a selectable corner/direction for the cut ("Keilrichtung"). Connects seamlessly to neighboring blocks and to other Keil blocks continuing the same ramp
+- Rampe (Wedge): A block whose own volume is cut diagonally by a plane, with a selectable corner/direction for the cut ("Rampenrichtung"). Connects seamlessly to neighboring blocks and to other Rampe blocks continuing the same ramp
 - Resizable sidebar: Drag the handle at the sidebar's edge to adjust its width
+- Background grid: A reference grid is drawn behind the model to help gauge the raster; choose which plane (X/Y/Z) it's shown in via "Grid Plane"
+- Keyboard shortcuts (type, orientation, cursor movement) now work regardless of which UI element has focus, as long as no text field is being edited
+- Cursor Keys option ("Screen-relative" / "Fixed Axes"): in Screen-relative mode (default), arrow/PageUp/PageDown keys move the cursor along whichever grid axis currently matches the on-screen direction, so "right" always moves right regardless of how the view is rotated; Fixed Axes restores the original behavior of always moving along the same world axes
 
 ## Features
-- Assemble a custom part from basic blocks: Pin Hole, Axle Hole, Pin, Axle, Solid, Ball Joint, Schmelzloch, Keil
+- Assemble a custom part from basic blocks: Pin Hole, Axle Hole, Pin, Axle, Solid, Ball Joint, Schmelzloch, Rampe
 - Save your model as an STL file
 - Catalog of existing LEGO® parts
 - Customize measurements to get a perfect fit

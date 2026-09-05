@@ -39,6 +39,25 @@
                     <option value="3">Solid Wireframe</option>
                 </select>
             </div>
+            <div class="group" id="gridplane">
+                <span class="editorhint">Grid Plane</span>
+                <input type="radio" id="gridplane-x" name="gridplane" value="x">
+                <label class="radiolabel x" for="gridplane-x">X</label>
+
+                <input type="radio" id="gridplane-y" name="gridplane" value="y" checked>
+                <label class="radiolabel y" for="gridplane-y">Y</label>
+
+                <input type="radio" id="gridplane-z" name="gridplane" value="z">
+                <label class="radiolabel z" for="gridplane-z">Z</label>
+            </div>
+            <div class="group" id="cursormode">
+                <span class="editorhint">Cursor Keys</span>
+                <input type="radio" id="cursormode-screen" name="cursormode" value="screen" checked>
+                <label class="radiolabel" for="cursormode-screen">Screen-relative</label>
+
+                <input type="radio" id="cursormode-world" name="cursormode" value="world">
+                <label class="radiolabel" for="cursormode-world">Fixed Axes</label>
+            </div>
         </details>
         <details id="blockeditor" open>
             <summary>Edit Block</summary>
@@ -66,14 +85,12 @@
                 <span class="editorhint"></span>
                 <input type="radio" id="hole" name="type" value="hole">
                 <label class="radiolabel" for="hole">Schmelzloch</label>
-            </div>
-            <div class="group" id="type3">
-                <span class="editorhint"></span>
+
                 <input type="radio" id="wedge" name="type" value="wedge">
-                <label class="radiolabel" for="wedge">Keil</label>
+                <label class="radiolabel" for="wedge">Rampe</label>
             </div>
             <div class="group" id="wedgedirection">
-                <span class="editorhint">Keilrichtung</span>
+                <span class="editorhint">Rampenrichtung</span>
                 <input type="radio" id="wedge-tl" name="wedgedirection" value="topleft">
                 <label class="radiolabel" for="wedge-tl">Top Left</label>
 
@@ -269,7 +286,7 @@
             </table>
             </p>
             <p>This project is based on the open source work of <a href="https://marian42.de/" target="_blank">marian42</a>, available on <a href="https://github.com/marian42/partdesigner" target="_blank">Github</a>.</p>
-            <p>The <em>Save Part</em> and <em>Load Part</em> features were added by <a href="https://kynso.de" target="_blank">Kynso GmbH</a>.</p>
+            <p>Additional features were added by <a href="https://kynso.de" target="_blank">Kynso GmbH</a>.</p>
             <p class="version">Version v2.02.00</p>
         </details>
     </div>
