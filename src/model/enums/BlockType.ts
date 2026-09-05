@@ -6,7 +6,8 @@
 	Axle,
 	BallJoint,
 	BallSocket,
-	Hole
+	Hole,
+	Wedge
 }
 
 const BLOCK_TYPE = {
@@ -17,5 +18,6 @@ const BLOCK_TYPE = {
 	"axle": BlockType.Axle,
 	"balljoint": BlockType.BallJoint,
 	"ballsocket": BlockType.BallSocket,
-	"hole": BlockType.Hole
+	"hole": BlockType.Hole,
+	"wedge": BlockType.Wedge
 }

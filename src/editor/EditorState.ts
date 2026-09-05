@@ -3,4 +3,5 @@ class EditorState {
 	public type: BlockType = BlockType.PinHole;
 	public fullSize: boolean = true;
 	public rounded: boolean = true;
+	public wedgeQuadrant: Quadrant = Quadrant.BottomLeft;
 }

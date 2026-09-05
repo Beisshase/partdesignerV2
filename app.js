@@ -111,6 +111,7 @@ class PartMeshGenerator extends MeshGenerator {
     constructor(part, measurements) {
         super(measurements);
         this.smallBlocks = part.createSmallBlocks();
+        this.removeEmptyWedgeQuadrants();
         this.createDummyBlocks();
         this.updateRounded();
         this.createTinyBlocks();
@@ -122,10 +123,35 @@ class PartMeshGenerator extends MeshGenerator {
         this.renderInteriors();
         this.renderAttachments();
         this.renderTinyBlockFaces();
+        this.renderWedges();
+    }
+    /* A Wedge's diagonally-opposite quadrant is intentionally empty (no material at all).
+    Removing it here - before any other processing sees it - makes every neighbor-adjacency
+    check (tiny block connectivity, "is there anything past my end" cap logic, face
+    visibility, ...) uniformly treat that corner as open space, instead of having to patch
+    each of those checks individually. */
+    removeEmptyWedgeQuadrants() {
+        var emptyPositions = [];
+        for (var block of this.smallBlocks.values()) {
+            if (block.type != BlockType.Wedge) {
+                continue;
+            }
+            var kx = localX(block.wedgeQuadrant);
+            var ky = localY(block.wedgeQuadrant);
+            if (block.localX != kx && block.localY != ky) {
+                emptyPositions.push(block.position);
+            }
+        }
+        for (var position of emptyPositions) {
+            this.smallBlocks.remove(position);
+        }
     }
     updateRounded() {
         var perpendicularRoundedAdapters = [];
         for (var block of this.smallBlocks.values()) {
+            if (block.type == BlockType.Wedge) {
+                continue;
+            }
             if (block.isAttachment) {
                 block.rounded = true;
                 continue;
@@ -530,7 +556,7 @@ class PartMeshGenerator extends MeshGenerator {
     renderRoundedExteriors() {
         var blockSizeWithoutMargin = 0.5 - this.measurements.edgeMargin;
         for (let block of this.tinyBlocks.values()) {
-            if (block.isExteriorMerged || !block.isCenter || block.isAttachment) {
+            if (block.isExteriorMerged || !block.isCenter || block.isAttachment || block.type == BlockType.Wedge) {
                 continue;
             }
             var nextBlock = this.getNextBlock(block, false);
@@ -948,6 +974,7 @@ class PartMeshGenerator extends MeshGenerator {
         return block != null
             && !this.isTinyBlock(block.position.plus(direction))
             && !block.isAttachment
+            && block.type != BlockType.Wedge
             && block.isFaceVisible(direction);
     }
     createTinyFace(position, size, direction) {
@@ -1043,6 +1070,155 @@ class PartMeshGenerator extends MeshGenerator {
             }
         }
     }
+    /* Renders the "Wedge" block type: a plane cuts diagonally through the block's own
+    volume without affecting how neighboring blocks see its footprint. Each of the 4
+    quadrant SmallBlocks that make up one placed Wedge block is classified relative to
+    the chosen "kept corner" quadrant: the matching quadrant stays a full solid cube,
+    the diagonally opposite quadrant is left empty, and the two remaining quadrants each
+    get their own local diagonal cut - together these tile into one seamless wedge shape
+    spanning the whole block. */
+    renderWedges() {
+        for (var block of this.smallBlocks.values()) {
+            if (block.type != BlockType.Wedge) {
+                continue;
+            }
+            var kx = localX(block.wedgeQuadrant);
+            var ky = localY(block.wedgeQuadrant);
+            if (block.localX == kx && block.localY == ky) {
+                this.renderWedgeSolidBox(block, kx, ky);
+            }
+            else if (block.localX != kx && block.localY != ky) {
+                continue;
+            }
+            else {
+                this.renderWedgeCut(block, kx, ky);
+            }
+        }
+    }
+    /* True if the neighboring SmallBlock in the given direction is another Wedge quadrant
+    of the same placement pattern (same orientation and kept-corner) - i.e. a matching
+    wedge continuing the ramp, whose shared boundary should be flush rather than margin-inset. */
+    hasAdjacentWedge(block, direction) {
+        var neighbor = this.smallBlocks.getOrNull(block.position.plus(direction));
+        return neighbor != null && neighbor.type == BlockType.Wedge
+            && neighbor.orientation == block.orientation && neighbor.wedgeQuadrant == block.wedgeQuadrant;
+    }
+    /* True if a different, non-matching block occupies the given direction. A cut
+    quadrant's "away" half has no material of its own, so its neighbor's normal cap logic
+    assumes the wedge fills the space and skips drawing anything there too - leaving a real
+    hole. When that happens, the wedge itself must draw the full end face (covering both
+    the kept and away halves) to seal that boundary, instead of just its own kept triangle. */
+    hasUnmatchedNeighbor(block, direction) {
+        var neighbor = this.smallBlocks.getOrNull(block.position.plus(direction));
+        return neighbor != null && !this.hasAdjacentWedge(block, direction);
+    }
+    /* Any two touching blocks connect flush, with no gap at all - the margin inset only
+    ever applies at a genuinely open/exterior boundary (nothing there at all). This holds
+    regardless of what type the neighbor is: the shared internal edge between this Wedge's
+    own sibling quadrant, another Wedge continuing the ramp, or an entirely different real
+    block, are all flush; only true open space gets the margin-inset "brick pitch" gap. */
+    getWedgeQuadrantBounds(block) {
+        var nR = block.position.dot(block.right);
+        var nU = block.position.dot(block.up);
+        var nF = block.position.dot(block.forward);
+        var hasNeighbor = (direction) => this.smallBlocks.getOrNull(block.position.plus(direction)) != null;
+        var Rn, Rf;
+        if (block.localX == 0) {
+            Rn = hasNeighbor(block.right.times(-1)) ? this.tinyIndexToWorld(nR * 3 - 1) : this.tinyIndexToWorld(nR * 3);
+            Rf = this.tinyIndexToWorld(nR * 3 + 2);
+        }
+        else {
+            Rn = this.tinyIndexToWorld(nR * 3 - 1);
+            Rf = hasNeighbor(block.right) ? this.tinyIndexToWorld(nR * 3 + 2) : this.tinyIndexToWorld(nR * 3 + 1);
+        }
+        var Un, Uf;
+        if (block.localY == 0) {
+            Un = hasNeighbor(block.up.times(-1)) ? this.tinyIndexToWorld(nU * 3 - 1) : this.tinyIndexToWorld(nU * 3);
+            Uf = this.tinyIndexToWorld(nU * 3 + 2);
+        }
+        else {
+            Un = this.tinyIndexToWorld(nU * 3 - 1);
+            Uf = hasNeighbor(block.up) ? this.tinyIndexToWorld(nU * 3 + 2) : this.tinyIndexToWorld(nU * 3 + 1);
+        }
+        var Fn = hasNeighbor(block.forward.times(-1)) ? this.tinyIndexToWorld(nF * 3 - 1) : this.tinyIndexToWorld(nF * 3);
+        var Ff = hasNeighbor(block.forward) ? this.tinyIndexToWorld(nF * 3 + 2) : this.tinyIndexToWorld(nF * 3 + 1);
+        return [Rn, Rf, Un, Uf, Fn, Ff];
+    }
+    /* Builds a quad from the 4 corners (in cyclic order around the rectangle - starting
+    point and direction don't matter) and self-corrects its winding so it faces
+    desiredNormal, instead of relying on a hand-picked vertex order per case. */
+    pushOrientedQuad(v1, v2, v3, v4, desiredNormal) {
+        var normal = v2.minus(v1).cross(v4.minus(v1));
+        this.createQuad(v1, v2, v3, v4, normal.dot(desiredNormal) < 0);
+    }
+    pushOrientedTriangle(v1, v2, v3, desiredNormal) {
+        var normal = v2.minus(v1).cross(v3.minus(v1));
+        if (normal.dot(desiredNormal) < 0) {
+            this.triangles.push(new Triangle(v1, v3, v2));
+        }
+        else {
+            this.triangles.push(new Triangle(v1, v2, v3));
+        }
+    }
+    /* Only the two true-exterior side faces (at the "kept" R and U bound) are drawn - the
+    other two sides border this same block's own cut quadrants, where solid material
+    continues seamlessly on both sides, so no face belongs there at all. Drawing one there
+    anyway (as an earlier version did) left a coincident double face that showed up as a
+    visible seam down the middle of the wedge. */
+    renderWedgeSolidBox(block, kx, ky) {
+        var [Rn, Rf, Un, Uf, Fn, Ff] = this.getWedgeQuadrantBounds(block);
+        var c = (r, u, f) => block.right.times(r).plus(block.up.times(u)).plus(block.forward.times(f));
+        var keptR = kx ? Rf : Rn;
+        var keptU = ky ? Uf : Un;
+        this.pushOrientedQuad(c(keptR, Un, Fn), c(keptR, Un, Ff), c(keptR, Uf, Ff), c(keptR, Uf, Fn), block.right.times(kx ? 1 : -1));
+        this.pushOrientedQuad(c(Rn, keptU, Fn), c(Rn, keptU, Ff), c(Rf, keptU, Ff), c(Rf, keptU, Fn), block.up.times(ky ? 1 : -1));
+        /* Fully solid on both sides of these two ends (this quadrant and whatever real
+        block or Wedge sibling continues there), so - same as any two touching Solid
+        blocks - neither side draws a cap; only a genuinely open end gets one. */
+        if (this.smallBlocks.getOrNull(block.position.plus(block.forward)) == null) {
+            this.pushOrientedQuad(c(Rn, Un, Ff), c(Rf, Un, Ff), c(Rf, Uf, Ff), c(Rn, Uf, Ff), block.forward);
+        }
+        if (this.smallBlocks.getOrNull(block.position.plus(block.forward.times(-1))) == null) {
+            this.pushOrientedQuad(c(Rn, Un, Fn), c(Rf, Un, Fn), c(Rf, Uf, Fn), c(Rn, Uf, Fn), block.forward.times(-1));
+        }
+    }
+    renderWedgeCut(block, kx, ky) {
+        var [Rn, Rf, Un, Uf, Fn, Ff] = this.getWedgeQuadrantBounds(block);
+        var c = (r, u, f) => block.right.times(r).plus(block.up.times(u)).plus(block.forward.times(f));
+        var keptR = kx ? Rf : Rn, awayR = kx ? Rn : Rf;
+        var keptU = ky ? Uf : Un, awayU = ky ? Un : Uf;
+        /* This quadrant shares exactly one axis position with the solid quadrant - the
+        leg face along that shared axis is an internal boundary with solid material on
+        both sides (already skipped by the solid quadrant too) and must not be drawn here
+        either. Only the leg on the other axis, which is a true exterior face, is kept. */
+        if (block.localY != ky) {
+            this.pushOrientedQuad(c(keptR, Un, Fn), c(keptR, Un, Ff), c(keptR, Uf, Ff), c(keptR, Uf, Fn), block.right.times(kx ? 1 : -1));
+        }
+        if (block.localX != kx) {
+            this.pushOrientedQuad(c(Rn, keptU, Fn), c(Rn, keptU, Ff), c(Rf, keptU, Ff), c(Rf, keptU, Fn), block.up.times(ky ? 1 : -1));
+        }
+        // Slanted hypotenuse face, pointing away from the kept (solid) corner towards the away corner
+        var hypotenuseNormal = block.right.times(awayR - keptR).plus(block.up.times(awayU - keptU));
+        this.pushOrientedQuad(c(keptR, awayU, Fn), c(keptR, awayU, Ff), c(awayR, keptU, Ff), c(awayR, keptU, Fn), hypotenuseNormal);
+        if (this.hasUnmatchedNeighbor(block, block.forward)) {
+            this.pushOrientedQuad(c(Rn, Un, Ff), c(Rf, Un, Ff), c(Rf, Uf, Ff), c(Rn, Uf, Ff), block.forward);
+        }
+        else if (!this.hasAdjacentWedge(block, block.forward)) {
+            var pKeptFar = c(keptR, keptU, Ff);
+            var cornerAFar = c(keptR, awayU, Ff);
+            var cornerBFar = c(awayR, keptU, Ff);
+            this.pushOrientedTriangle(pKeptFar, cornerAFar, cornerBFar, block.forward);
+        }
+        if (this.hasUnmatchedNeighbor(block, block.forward.times(-1))) {
+            this.pushOrientedQuad(c(Rn, Un, Fn), c(Rf, Un, Fn), c(Rf, Uf, Fn), c(Rn, Uf, Fn), block.forward.times(-1));
+        }
+        else if (!this.hasAdjacentWedge(block, block.forward.times(-1))) {
+            var pKeptNear = c(keptR, keptU, Fn);
+            var cornerANear = c(keptR, awayU, Fn);
+            var cornerBNear = c(awayR, keptU, Fn);
+            this.pushOrientedTriangle(pKeptNear, cornerANear, cornerBNear, block.forward.times(-1));
+        }
+    }
 }
 function triangularNumber(n) {
     return n * (n + 1) / 2;
@@ -1127,7 +1303,7 @@ class Measurements {
     interiorRadius = 3.2 / this.technicUnit;
     pinHoleRadius = 2.475 / this.technicUnit;
     pinHoleOffset = 0.89 / this.technicUnit;
-    holeRadius = 1.75 / this.technicUnit;
+    holeRadius = 1.45 / this.technicUnit;
     axleHoleSize = 1.01 / this.technicUnit;
     pinRadius = 2.315 / this.technicUnit;
     ballBaseRadius = 1.6 / this.technicUnit;
@@ -1383,9 +1559,11 @@ class Editor {
         document.getElementById("resetmeasurements").addEventListener("click", (event) => this.resetMeasurements());
         this.initializeEditor("type", (typeName) => this.setType(typeName));
         this.initializeEditor("type2", (typeName) => this.setType(typeName));
+        this.initializeEditor("type3", (typeName) => this.setType(typeName));
         this.initializeEditor("orientation", (orientationName) => this.setOrientation(orientationName));
         this.initializeEditor("size", (sizeName) => this.setSize(sizeName));
         this.initializeEditor("rounded", (roundedName) => this.setRounded(roundedName));
+        this.initializeEditor("wedgedirection", (quadrantName) => this.setWedgeQuadrant(quadrantName));
         document.getElementById("blockeditor").addEventListener("toggle", (event) => this.onNodeEditorClick(event));
         this.getNameTextbox().addEventListener("change", (event) => this.onPartNameChange(event));
         this.getNameTextbox().addEventListener("keyup", (event) => this.onPartNameChange(event));
@@ -1517,6 +1695,10 @@ class Editor {
         this.editorState.rounded = roundedName == "true";
         this.updateBlock();
     }
+    setWedgeQuadrant(quadrantName) {
+        this.editorState.wedgeQuadrant = QUADRANT_NAME[quadrantName];
+        this.updateBlock();
+    }
     setRenderStyle(style) {
         this.style = style;
         this.partNormalDepthRenderer.enabled = style == RenderStyle.Contour;
@@ -1526,9 +1708,9 @@ class Editor {
         this.updateMesh();
     }
     updateBlock() {
-        this.part.placeBlockForced(this.handles.getSelectedBlock(), new Block(this.editorState.orientation, this.editorState.type, this.editorState.rounded));
+        this.part.placeBlockForced(this.handles.getSelectedBlock(), new Block(this.editorState.orientation, this.editorState.type, this.editorState.rounded, this.editorState.wedgeQuadrant));
         if (this.editorState.fullSize) {
-            this.part.placeBlockForced(this.handles.getSelectedBlock().plus(FORWARD[this.editorState.orientation]), new Block(this.editorState.orientation, this.editorState.type, this.editorState.rounded));
+            this.part.placeBlockForced(this.handles.getSelectedBlock().plus(FORWARD[this.editorState.orientation]), new Block(this.editorState.orientation, this.editorState.type, this.editorState.rounded, this.editorState.wedgeQuadrant));
         }
         this.updateMesh();
     }
@@ -1620,6 +1802,7 @@ class Editor {
             '5': () => this.setType('solid'),
             '6': () => this.setType('balljoint'),
             '7': () => this.setType('hole'),
+            '8': () => this.setType('wedge'),
             'y': () => this.setOrientation('y'),
             'z': () => this.setOrientation('z'),
             'x': () => this.setOrientation('x'),
@@ -1683,6 +1866,7 @@ class EditorState {
     type = BlockType.PinHole;
     fullSize = true;
     rounded = true;
+    wedgeQuadrant = Quadrant.BottomLeft;
 }
 const ARROW_RADIUS_INNER = 0.05;
 const ARROW_RADIUS_OUTER = 0.15;
@@ -2762,14 +2946,16 @@ class Block {
     orientation;
     type;
     rounded;
+    wedgeQuadrant;
     right;
     up;
     forward;
     isAttachment;
-    constructor(orientation, type, rounded) {
+    constructor(orientation, type, rounded, wedgeQuadrant = Quadrant.BottomLeft) {
         this.orientation = orientation;
         this.type = type;
         this.rounded = rounded;
+        this.wedgeQuadrant = wedgeQuadrant;
         this.right = RIGHT[this.orientation];
         this.up = UP[this.orientation];
         this.forward = FORWARD[this.orientation];
@@ -2862,6 +3048,9 @@ class Part {
             }
             result += orientationAndRounded;
             result += block.type.toString();
+            if (block.type == BlockType.Wedge) {
+                result += block.wedgeQuadrant.toString();
+            }
         }
         return result;
     }
@@ -2880,8 +3069,13 @@ class Part {
             let orientation = orientationString == "x" ? Orientation.X : (orientationString == "y" ? Orientation.Y : Orientation.Z);
             let rounded = s[p].toLowerCase() == s[p];
             let type = parseInt(s[p + 1]);
-            part.blocks.set(position, new Block(orientation, type, rounded));
             p += 2;
+            let wedgeQuadrant = Quadrant.BottomLeft;
+            if (type == BlockType.Wedge) {
+                wedgeQuadrant = parseInt(s[p]);
+                p += 1;
+            }
+            part.blocks.set(position, new Block(orientation, type, rounded, wedgeQuadrant));
         }
         return part;
     }
@@ -2951,7 +3145,7 @@ class SmallBlock extends Block {
     horizontal;
     vertical;
     constructor(quadrant, positon, source) {
-        super(source.orientation, source.type, source.rounded);
+        super(source.orientation, source.type, source.rounded, source.wedgeQuadrant);
         this.quadrant = quadrant;
         this.position = positon;
         this.hasInterior = source.type != BlockType.Solid;
@@ -3076,6 +3270,7 @@ var BlockType;
     BlockType[BlockType["BallJoint"] = 5] = "BallJoint";
     BlockType[BlockType["BallSocket"] = 6] = "BallSocket";
     BlockType[BlockType["Hole"] = 7] = "Hole";
+    BlockType[BlockType["Wedge"] = 8] = "Wedge";
 })(BlockType || (BlockType = {}));
 const BLOCK_TYPE = {
     "solid": BlockType.Solid,
@@ -3085,7 +3280,8 @@ const BLOCK_TYPE = {
     "axle": BlockType.Axle,
     "balljoint": BlockType.BallJoint,
     "ballsocket": BlockType.BallSocket,
-    "hole": BlockType.Hole
+    "hole": BlockType.Hole,
+    "wedge": BlockType.Wedge
 };
 var Orientation;
 (function (Orientation) {
@@ -3130,6 +3326,12 @@ var Quadrant;
     Quadrant[Quadrant["BottomLeft"] = 2] = "BottomLeft";
     Quadrant[Quadrant["BottomRight"] = 3] = "BottomRight";
 })(Quadrant || (Quadrant = {}));
+const QUADRANT_NAME = {
+    "topleft": Quadrant.TopLeft,
+    "topright": Quadrant.TopRight,
+    "bottomleft": Quadrant.BottomLeft,
+    "bottomright": Quadrant.BottomRight
+};
 function localX(quadrant) {
     return (quadrant == Quadrant.TopRight || quadrant == Quadrant.BottomRight) ? 1 : 0;
 }

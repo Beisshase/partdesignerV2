@@ -13,7 +13,7 @@
 	public readonly vertical: Vector3;
 
 	constructor(quadrant: Quadrant, positon: Vector3, source: Block) {
-		super(source.orientation, source.type, source.rounded);
+		super(source.orientation, source.type, source.rounded, source.wedgeQuadrant);
 		this.quadrant = quadrant;
 		this.position = positon;
 

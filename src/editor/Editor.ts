@@ -99,9 +99,11 @@ class Editor {
 
 		this.initializeEditor("type", (typeName: string) => this.setType(typeName));
 		this.initializeEditor("type2", (typeName: string) => this.setType(typeName));
+		this.initializeEditor("type3", (typeName: string) => this.setType(typeName));
 		this.initializeEditor("orientation", (orientationName: string) => this.setOrientation(orientationName));
 		this.initializeEditor("size", (sizeName: string) => this.setSize(sizeName));
 		this.initializeEditor("rounded", (roundedName: string) => this.setRounded(roundedName));
+		this.initializeEditor("wedgedirection", (quadrantName: string) => this.setWedgeQuadrant(quadrantName));
 
 		document.getElementById("blockeditor").addEventListener("toggle", (event: MouseEvent) => this.onNodeEditorClick(event));
 
@@ -253,6 +255,11 @@ class Editor {
 		this.updateBlock();
 	}
 
+	private setWedgeQuadrant(quadrantName: string) {
+		this.editorState.wedgeQuadrant = QUADRANT_NAME[quadrantName];
+		this.updateBlock();
+	}
+
 	private setRenderStyle(style: RenderStyle) {
 		this.style = style;
 		this.partNormalDepthRenderer.enabled = style == RenderStyle.Contour;
@@ -263,10 +270,10 @@ class Editor {
 	}
 
 	private updateBlock() {
-		this.part.placeBlockForced(this.handles.getSelectedBlock(), new Block(this.editorState.orientation, this.editorState.type, this.editorState.rounded));
+		this.part.placeBlockForced(this.handles.getSelectedBlock(), new Block(this.editorState.orientation, this.editorState.type, this.editorState.rounded, this.editorState.wedgeQuadrant));
 		if (this.editorState.fullSize) {
 			this.part.placeBlockForced(this.handles.getSelectedBlock().plus(FORWARD[this.editorState.orientation]),
-				new Block(this.editorState.orientation, this.editorState.type, this.editorState.rounded));
+				new Block(this.editorState.orientation, this.editorState.type, this.editorState.rounded, this.editorState.wedgeQuadrant));
 		}
 		this.updateMesh();
 	}
@@ -365,6 +372,7 @@ class Editor {
 			'5': () => this.setType('solid'),
 			'6': () => this.setType('balljoint'),
 			'7': () => this.setType('hole'),
+			'8': () => this.setType('wedge'),
 			'y': () => this.setOrientation('y'),
 			'z': () => this.setOrientation('z'),
 			'x': () => this.setOrientation('x'),

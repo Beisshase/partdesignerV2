@@ -99,6 +99,9 @@ class Part {
 			}
 			result += orientationAndRounded;
 			result += block.type.toString();
+			if (block.type == BlockType.Wedge) {
+				result += block.wedgeQuadrant.toString();
+			}
 		}
 		return result;
 	}
@@ -114,16 +117,22 @@ class Part {
 			while (XYZ.indexOf(s[p + chars].toLowerCase()) == -1) {
 				chars++;
 			}
-			
+
 			let position = Vector3.fromNumber(parseInt(s.substr(p, chars), 16));
 			p += chars;
 			let orientationString = s[p].toString().toLowerCase();
 			let orientation = orientationString == "x" ? Orientation.X : (orientationString == "y" ? Orientation.Y : Orientation.Z);
 			let rounded = s[p].toLowerCase() == s[p];
 			let type = parseInt(s[p + 1]) as BlockType;
-
-			part.blocks.set(position, new Block(orientation, type, rounded));
 			p += 2;
+
+			let wedgeQuadrant = Quadrant.BottomLeft;
+			if (type == BlockType.Wedge) {
+				wedgeQuadrant = parseInt(s[p]) as Quadrant;
+				p += 1;
+			}
+
+			part.blocks.set(position, new Block(orientation, type, rounded, wedgeQuadrant));
 		}
 		return part;
 	}

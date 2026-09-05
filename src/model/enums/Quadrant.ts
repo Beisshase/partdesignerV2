@@ -5,6 +5,13 @@
 	BottomRight
 }
 
+const QUADRANT_NAME = {
+	"topleft": Quadrant.TopLeft,
+	"topright": Quadrant.TopRight,
+	"bottomleft": Quadrant.BottomLeft,
+	"bottomright": Quadrant.BottomRight
+}
+
 function localX(quadrant: Quadrant): number {
 	return (quadrant == Quadrant.TopRight || quadrant == Quadrant.BottomRight) ? 1 : 0;
 }

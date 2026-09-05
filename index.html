@@ -67,6 +67,25 @@
                 <input type="radio" id="hole" name="type" value="hole">
                 <label class="radiolabel" for="hole">Schmelzloch</label>
             </div>
+            <div class="group" id="type3">
+                <span class="editorhint"></span>
+                <input type="radio" id="wedge" name="type" value="wedge">
+                <label class="radiolabel" for="wedge">Keil</label>
+            </div>
+            <div class="group" id="wedgedirection">
+                <span class="editorhint">Keilrichtung</span>
+                <input type="radio" id="wedge-tl" name="wedgedirection" value="topleft">
+                <label class="radiolabel" for="wedge-tl">Top Left</label>
+
+                <input type="radio" id="wedge-tr" name="wedgedirection" value="topright">
+                <label class="radiolabel" for="wedge-tr">Top Right</label>
+
+                <input type="radio" id="wedge-bl" name="wedgedirection" value="bottomleft" checked>
+                <label class="radiolabel" for="wedge-bl">Bottom Left</label>
+
+                <input type="radio" id="wedge-br" name="wedgedirection" value="bottomright">
+                <label class="radiolabel" for="wedge-br">Bottom Right</label>
+            </div>
             <div class="group" id="orientation">
                 <span class="editorhint">Orientation</span>
                 <input type="radio" id="x" name="orientation" value="x" checked>
@@ -223,7 +242,7 @@
             <table>
                 <tr>
                     <td><span class="key">1</span> <span class="key">2</span> <span class="key">3</span>
-                        <span class="key">4</span> <span class="key">5</span> <span class="key">6</span> <span class="key">7</span>
+                        <span class="key">4</span> <span class="key">5</span> <span class="key">6</span> <span class="key">7</span> <span class="key">8</span>
                     </td>
                     <td>set type</td>
                 </tr>
@@ -251,7 +270,7 @@
             </p>
             <p>This project is based on the open source work of <a href="https://marian42.de/" target="_blank">marian42</a>, available on <a href="https://github.com/marian42/partdesigner" target="_blank">Github</a>.</p>
             <p>The <em>Save Part</em> and <em>Load Part</em> features were added by <a href="https://kynso.de" target="_blank">Kynso GmbH</a>.</p>
-            <p class="version">Version v2.01.00</p>
+            <p class="version">Version v2.02.00</p>
         </details>
     </div>
     <div class="sidebar-resizer" id="sidebar-resizer"></div>

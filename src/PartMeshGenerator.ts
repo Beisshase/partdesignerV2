@@ -5,6 +5,7 @@ class PartMeshGenerator extends MeshGenerator {
 	constructor(part: Part, measurements: Measurements) {
         super(measurements);
         this.smallBlocks = part.createSmallBlocks();
+		this.removeEmptyWedgeQuadrants();
 		this.createDummyBlocks();
         this.updateRounded();
         this.createTinyBlocks();
@@ -16,12 +17,38 @@ class PartMeshGenerator extends MeshGenerator {
 		this.renderInteriors();
         this.renderAttachments();
         this.renderTinyBlockFaces();
+        this.renderWedges();
     }
+
+	/* A Wedge's diagonally-opposite quadrant is intentionally empty (no material at all).
+	Removing it here - before any other processing sees it - makes every neighbor-adjacency
+	check (tiny block connectivity, "is there anything past my end" cap logic, face
+	visibility, ...) uniformly treat that corner as open space, instead of having to patch
+	each of those checks individually. */
+	private removeEmptyWedgeQuadrants() {
+		var emptyPositions: Vector3[] = [];
+		for (var block of this.smallBlocks.values()) {
+			if (block.type != BlockType.Wedge) {
+				continue;
+			}
+			var kx = localX(block.wedgeQuadrant);
+			var ky = localY(block.wedgeQuadrant);
+			if (block.localX != kx && block.localY != ky) {
+				emptyPositions.push(block.position);
+			}
+		}
+		for (var position of emptyPositions) {
+			this.smallBlocks.remove(position);
+		}
+	}
 
     private updateRounded() {
 		var perpendicularRoundedAdapters: SmallBlock[] = [];
 
         for (var block of this.smallBlocks.values()) {
+			if (block.type == BlockType.Wedge) {
+				continue;
+			}
 			if (block.isAttachment) {
 				block.rounded = true;
 				continue;
@@ -479,7 +506,7 @@ class PartMeshGenerator extends MeshGenerator {
 		var blockSizeWithoutMargin = 0.5 - this.measurements.edgeMargin;
 		
         for (let block of this.tinyBlocks.values()) {
-            if (block.isExteriorMerged || !block.isCenter || block.isAttachment) {
+            if (block.isExteriorMerged || !block.isCenter || block.isAttachment || block.type == BlockType.Wedge) {
                 continue;
             }
 
@@ -1094,6 +1121,7 @@ class PartMeshGenerator extends MeshGenerator {
 		return block != null
 			&& !this.isTinyBlock(block.position.plus(direction))
 			&& !block.isAttachment
+			&& block.type != BlockType.Wedge
 			&& block.isFaceVisible(direction);
 	}
 
@@ -1197,4 +1225,167 @@ class PartMeshGenerator extends MeshGenerator {
 			}
 		}
     }
+
+	/* Renders the "Wedge" block type: a plane cuts diagonally through the block's own
+	volume without affecting how neighboring blocks see its footprint. Each of the 4
+	quadrant SmallBlocks that make up one placed Wedge block is classified relative to
+	the chosen "kept corner" quadrant: the matching quadrant stays a full solid cube,
+	the diagonally opposite quadrant is left empty, and the two remaining quadrants each
+	get their own local diagonal cut - together these tile into one seamless wedge shape
+	spanning the whole block. */
+	private renderWedges() {
+		for (var block of this.smallBlocks.values()) {
+			if (block.type != BlockType.Wedge) {
+				continue;
+			}
+
+			var kx = localX(block.wedgeQuadrant);
+			var ky = localY(block.wedgeQuadrant);
+
+			if (block.localX == kx && block.localY == ky) {
+				this.renderWedgeSolidBox(block, kx, ky);
+			} else if (block.localX != kx && block.localY != ky) {
+				continue;
+			} else {
+				this.renderWedgeCut(block, kx, ky);
+			}
+		}
+	}
+
+	/* True if the neighboring SmallBlock in the given direction is another Wedge quadrant
+	of the same placement pattern (same orientation and kept-corner) - i.e. a matching
+	wedge continuing the ramp, whose shared boundary should be flush rather than margin-inset. */
+	private hasAdjacentWedge(block: SmallBlock, direction: Vector3): boolean {
+		var neighbor = this.smallBlocks.getOrNull(block.position.plus(direction));
+		return neighbor != null && neighbor.type == BlockType.Wedge
+			&& neighbor.orientation == block.orientation && neighbor.wedgeQuadrant == block.wedgeQuadrant;
+	}
+
+	/* True if a different, non-matching block occupies the given direction. A cut
+	quadrant's "away" half has no material of its own, so its neighbor's normal cap logic
+	assumes the wedge fills the space and skips drawing anything there too - leaving a real
+	hole. When that happens, the wedge itself must draw the full end face (covering both
+	the kept and away halves) to seal that boundary, instead of just its own kept triangle. */
+	private hasUnmatchedNeighbor(block: SmallBlock, direction: Vector3): boolean {
+		var neighbor = this.smallBlocks.getOrNull(block.position.plus(direction));
+		return neighbor != null && !this.hasAdjacentWedge(block, direction);
+	}
+
+	/* Any two touching blocks connect flush, with no gap at all - the margin inset only
+	ever applies at a genuinely open/exterior boundary (nothing there at all). This holds
+	regardless of what type the neighbor is: the shared internal edge between this Wedge's
+	own sibling quadrant, another Wedge continuing the ramp, or an entirely different real
+	block, are all flush; only true open space gets the margin-inset "brick pitch" gap. */
+	private getWedgeQuadrantBounds(block: SmallBlock): number[] {
+		var nR = block.position.dot(block.right);
+		var nU = block.position.dot(block.up);
+		var nF = block.position.dot(block.forward);
+		var hasNeighbor = (direction: Vector3) => this.smallBlocks.getOrNull(block.position.plus(direction)) != null;
+
+		var Rn: number, Rf: number;
+		if (block.localX == 0) {
+			Rn = hasNeighbor(block.right.times(-1)) ? this.tinyIndexToWorld(nR * 3 - 1) : this.tinyIndexToWorld(nR * 3);
+			Rf = this.tinyIndexToWorld(nR * 3 + 2);
+		} else {
+			Rn = this.tinyIndexToWorld(nR * 3 - 1);
+			Rf = hasNeighbor(block.right) ? this.tinyIndexToWorld(nR * 3 + 2) : this.tinyIndexToWorld(nR * 3 + 1);
+		}
+
+		var Un: number, Uf: number;
+		if (block.localY == 0) {
+			Un = hasNeighbor(block.up.times(-1)) ? this.tinyIndexToWorld(nU * 3 - 1) : this.tinyIndexToWorld(nU * 3);
+			Uf = this.tinyIndexToWorld(nU * 3 + 2);
+		} else {
+			Un = this.tinyIndexToWorld(nU * 3 - 1);
+			Uf = hasNeighbor(block.up) ? this.tinyIndexToWorld(nU * 3 + 2) : this.tinyIndexToWorld(nU * 3 + 1);
+		}
+
+		var Fn = hasNeighbor(block.forward.times(-1)) ? this.tinyIndexToWorld(nF * 3 - 1) : this.tinyIndexToWorld(nF * 3);
+		var Ff = hasNeighbor(block.forward) ? this.tinyIndexToWorld(nF * 3 + 2) : this.tinyIndexToWorld(nF * 3 + 1);
+
+		return [Rn, Rf, Un, Uf, Fn, Ff];
+	}
+
+	/* Builds a quad from the 4 corners (in cyclic order around the rectangle - starting
+	point and direction don't matter) and self-corrects its winding so it faces
+	desiredNormal, instead of relying on a hand-picked vertex order per case. */
+	private pushOrientedQuad(v1: Vector3, v2: Vector3, v3: Vector3, v4: Vector3, desiredNormal: Vector3) {
+		var normal = v2.minus(v1).cross(v4.minus(v1));
+		this.createQuad(v1, v2, v3, v4, normal.dot(desiredNormal) < 0);
+	}
+
+	private pushOrientedTriangle(v1: Vector3, v2: Vector3, v3: Vector3, desiredNormal: Vector3) {
+		var normal = v2.minus(v1).cross(v3.minus(v1));
+		if (normal.dot(desiredNormal) < 0) {
+			this.triangles.push(new Triangle(v1, v3, v2));
+		} else {
+			this.triangles.push(new Triangle(v1, v2, v3));
+		}
+	}
+
+	/* Only the two true-exterior side faces (at the "kept" R and U bound) are drawn - the
+	other two sides border this same block's own cut quadrants, where solid material
+	continues seamlessly on both sides, so no face belongs there at all. Drawing one there
+	anyway (as an earlier version did) left a coincident double face that showed up as a
+	visible seam down the middle of the wedge. */
+	private renderWedgeSolidBox(block: SmallBlock, kx: number, ky: number) {
+		var [Rn, Rf, Un, Uf, Fn, Ff] = this.getWedgeQuadrantBounds(block);
+		var c = (r: number, u: number, f: number) => block.right.times(r).plus(block.up.times(u)).plus(block.forward.times(f));
+
+		var keptR = kx ? Rf : Rn;
+		var keptU = ky ? Uf : Un;
+
+		this.pushOrientedQuad(c(keptR, Un, Fn), c(keptR, Un, Ff), c(keptR, Uf, Ff), c(keptR, Uf, Fn), block.right.times(kx ? 1 : -1));
+		this.pushOrientedQuad(c(Rn, keptU, Fn), c(Rn, keptU, Ff), c(Rf, keptU, Ff), c(Rf, keptU, Fn), block.up.times(ky ? 1 : -1));
+		/* Fully solid on both sides of these two ends (this quadrant and whatever real
+		block or Wedge sibling continues there), so - same as any two touching Solid
+		blocks - neither side draws a cap; only a genuinely open end gets one. */
+		if (this.smallBlocks.getOrNull(block.position.plus(block.forward)) == null) {
+			this.pushOrientedQuad(c(Rn, Un, Ff), c(Rf, Un, Ff), c(Rf, Uf, Ff), c(Rn, Uf, Ff), block.forward);
+		}
+		if (this.smallBlocks.getOrNull(block.position.plus(block.forward.times(-1))) == null) {
+			this.pushOrientedQuad(c(Rn, Un, Fn), c(Rf, Un, Fn), c(Rf, Uf, Fn), c(Rn, Uf, Fn), block.forward.times(-1));
+		}
+	}
+
+	private renderWedgeCut(block: SmallBlock, kx: number, ky: number) {
+		var [Rn, Rf, Un, Uf, Fn, Ff] = this.getWedgeQuadrantBounds(block);
+		var c = (r: number, u: number, f: number) => block.right.times(r).plus(block.up.times(u)).plus(block.forward.times(f));
+
+		var keptR = kx ? Rf : Rn, awayR = kx ? Rn : Rf;
+		var keptU = ky ? Uf : Un, awayU = ky ? Un : Uf;
+
+		/* This quadrant shares exactly one axis position with the solid quadrant - the
+		leg face along that shared axis is an internal boundary with solid material on
+		both sides (already skipped by the solid quadrant too) and must not be drawn here
+		either. Only the leg on the other axis, which is a true exterior face, is kept. */
+		if (block.localY != ky) {
+			this.pushOrientedQuad(c(keptR, Un, Fn), c(keptR, Un, Ff), c(keptR, Uf, Ff), c(keptR, Uf, Fn), block.right.times(kx ? 1 : -1));
+		}
+		if (block.localX != kx) {
+			this.pushOrientedQuad(c(Rn, keptU, Fn), c(Rn, keptU, Ff), c(Rf, keptU, Ff), c(Rf, keptU, Fn), block.up.times(ky ? 1 : -1));
+		}
+
+		// Slanted hypotenuse face, pointing away from the kept (solid) corner towards the away corner
+		var hypotenuseNormal = block.right.times(awayR - keptR).plus(block.up.times(awayU - keptU));
+		this.pushOrientedQuad(c(keptR, awayU, Fn), c(keptR, awayU, Ff), c(awayR, keptU, Ff), c(awayR, keptU, Fn), hypotenuseNormal);
+
+		if (this.hasUnmatchedNeighbor(block, block.forward)) {
+			this.pushOrientedQuad(c(Rn, Un, Ff), c(Rf, Un, Ff), c(Rf, Uf, Ff), c(Rn, Uf, Ff), block.forward);
+		} else if (!this.hasAdjacentWedge(block, block.forward)) {
+			var pKeptFar = c(keptR, keptU, Ff);
+			var cornerAFar = c(keptR, awayU, Ff);
+			var cornerBFar = c(awayR, keptU, Ff);
+			this.pushOrientedTriangle(pKeptFar, cornerAFar, cornerBFar, block.forward);
+		}
+
+		if (this.hasUnmatchedNeighbor(block, block.forward.times(-1))) {
+			this.pushOrientedQuad(c(Rn, Un, Fn), c(Rf, Un, Fn), c(Rf, Uf, Fn), c(Rn, Uf, Fn), block.forward.times(-1));
+		} else if (!this.hasAdjacentWedge(block, block.forward.times(-1))) {
+			var pKeptNear = c(keptR, keptU, Fn);
+			var cornerANear = c(keptR, awayU, Fn);
+			var cornerBNear = c(awayR, keptU, Fn);
+			this.pushOrientedTriangle(pKeptNear, cornerANear, cornerBNear, block.forward.times(-1));
+		}
+	}
 }
